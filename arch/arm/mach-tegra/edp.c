@@ -29,6 +29,7 @@
 static const struct tegra_edp_limits *edp_limits;
 static struct tegra_edp_limits *default_table;
 static int edp_limits_size;
+static unsigned int regulator_cur;
 
 static const unsigned int *system_edp_limits;
 
@@ -278,6 +279,7 @@ void __init tegra_init_cpu_edp_limits(unsigned int regulator_mA)
 		edp_limits_size = ARRAY_SIZE(edp_default_limits);
 		return;
 	}
+	regulator_cur = regulator_mA;
 
 	for (i = 0; i < tsize; i++) {
 		if (t[i].speedo_id == cpu_speedo_id &&
@@ -401,7 +403,9 @@ static int edp_debugfs_show(struct seq_file *s, void *data)
 {
 	int i;
 
-	seq_printf(s, "-- CPU EDP table --\n");
+	seq_printf(s, "-- CPU %sEDP table (%umA) --\n",
+		   edp_limits == edp_default_limits ? "default " : "",
+		   regulator_cur);
 	for (i = 0; i < edp_limits_size; i++) {
 		seq_printf(s, "%4dC: %10u %10u %10u %10u\n",
 			   edp_limits[i].temperature,
