@@ -51,6 +51,7 @@ config ARCH_TEGRA_3x_SOC
 	select ARCH_SUPPORTS_MSI if TEGRA_PCI
 	select PCI_MSI if TEGRA_PCI
 	select ARM_ERRATA_754322
+	select TEGRA_LP2_ARM_TWD if HAVE_ARM_TWD && !TEGRA_RAIL_OFF_MULTIPLE_CPUS
 	help
 	  Support for NVIDIA Tegra 3 family of SoCs, based upon the
 	  ARM CortexA9MP CPU and the ARM PL310 L2 cache controller
@@ -158,16 +159,16 @@ config MACH_TEGRA_ENTERPRISE
          Support for NVIDIA Enterprise development platform
 
 config MACH_VERTEXF
-       bool "Vertex#F board"
+       bool "Quattro#F board"
        depends on ARCH_TEGRA_3x_SOC
        help
-         Support for HTC Vertex#F tablet
+         Support for HTC Quattro#F tablet
 
 config MACH_VERTEXFP
-       bool "Vertex#F PRM board"
+       bool "Quattro#F PRM board"
        depends on ARCH_TEGRA_3x_SOC
        help
-         Support for HTC Vertex#F PRM tablet
+         Support for HTC Quattro#F PRM tablet
 
 config MACH_ENDEAVORU
 	bool "Edge board"
@@ -182,13 +183,6 @@ config MACH_ENDEAVORTD
 	depends on ARCH_TEGRA_3x_SOC
 	help
 		Support for HTC EDGE#TD phone
-
-config MACH_ERAU
-	bool "Edge board"
-	default n
-	depends on ARCH_TEGRA_3x_SOC
-	help
-		Support for HTC EDGE#U phone
 
 config BATTERY_TPS80032
 	depends on HTC_BATT_CORE && ADC_TPS80032 && VSYS_ALARM_TPS80032
@@ -423,20 +417,6 @@ config TEGRA_EMC_TO_DDR_CLOCK
 	default "2" if ARCH_TEGRA_2x_SOC
 	default "1"
 
-config TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND
-	bool "Use interactive cpu frequency governor when device enters early suspend"
-	depends on HAS_EARLYSUSPEND && CPU_FREQ && !TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
-	default y
-	help
-	 Also will restore to original cpu frequency governor when device is resumed
-
-config TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
-	bool "Use conservative cpu frequency governor when device enters early suspend"
-	depends on HAS_EARLYSUSPEND && CPU_FREQ
-	default n
-	help
-	 Also will restore to original cpu frequency governor when device is resumed
-
 config TEGRA_LEGACY_AUDIO
 	bool "Enable Tegra Legacy Audio APIs"
 	default n
@@ -457,7 +437,7 @@ config USB_HOTPLUG
 
 config TIWLAN_SDIO
         bool "TI WLAN Enhanced SDIO Contoller support"
-        depends on MACH_ENDEAVORU || MACH_ENDEAVORTD || MACH_ERAU || MACH_BLUE
+        depends on MACH_ENDEAVORU || MACH_ENDEAVORTD || MACH_BLUE
         help
            Say Y here if you want to be able to use TI's WLAN device using the
            SDIO interface. If unsure, say N.
@@ -579,7 +559,7 @@ config HTC_BATT_CORE
 
 config RESET_REASON
     bool "Enable reset reason for Quattro / Blue"
-    depends on MACH_ENDEAVORU || MACH_ENDEAVORTD || MACH_ERAU || MACH_BLUE || MACH_VERTEXFP
+    depends on MACH_ENDEAVORU || MACH_ENDEAVORTD || MACH_BLUE || MACH_VERTEXF || MACH_QUATTRO_U
     default n
 
 config TEGRA_PLLM_RESTRICTED
@@ -612,32 +592,16 @@ config TEGRA_WDT_RECOVERY
 	  Enables watchdog recovery mechanism to protect against
 	  suspend/resume hangs.
 
+config TEGRA_LP2_ARM_TWD
+	bool
+
+config TEGRA_RAIL_OFF_MULTIPLE_CPUS
+	bool
+
 config ANDROID_RAM_CONSOLE_APPEND_PMIC_STATUS_BITS
 	bool "Append PMIC status bits to end of /proc/last_kmsg"
 	default n
 	help
 	  Append PMIC status bits to end of /proc/last_kmsg for
 	  checking the boot / reset reason in detail
-
-config BUILD_BOARD_MFG
-	bool
-	option env="CONFIG_BOARD_MFG"
-
-choice
-	prompt "SELECT BUILD_BOARD_MFG"
-	default BOARD_MFG
-
-config BOARD_MFG
-	prompt "BUILD_BOARD_MFG"
-	bool
-	depends on BUILD_BOARD_MFG
-
-config BOARD_NO_MFG
-	prompt "BUILD_BOARD_NO_MFG"
-	bool
-	depends on !BUILD_BOARD_MFG
-
-endchoice
-
 endif
-
