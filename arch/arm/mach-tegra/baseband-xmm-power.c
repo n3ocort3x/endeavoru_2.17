@@ -337,7 +337,7 @@ int enable_avdd_dsi_csi_power()
 	ret = regulator_enable(endeavor_dsi_reg);
 	if (ret < 0) {
 		printk(KERN_ERR
-			"DSI regulator avdd_dsi_csi couldn't be enabled\n",ret);
+			"DSI regulator avdd_dsi_csi couldn't be enabled\n");
 		
 	}
 	return ret;
@@ -359,7 +359,7 @@ int disable_avdd_dsi_csi_power()
 	ret = regulator_disable(endeavor_dsi_reg);
 	if (ret < 0) {
 		printk(KERN_ERR
-			"DSI regulator avdd_dsi_csi couldn't be disabled\n",ret);
+			"DSI regulator avdd_dsi_csi couldn't be disabled\n");
 		
 	}
 	endeavor_dsi_reg=NULL;
@@ -406,6 +406,8 @@ int gpio_request_only_one(unsigned gpio,const char *label)
 	err = gpio_request(gpio, label);
 	if (err)
 		return err;
+
+	return err;
 }
 
 
@@ -439,6 +441,8 @@ static int gpio_o_l_uart(int gpio, char* name)
 	}
 	tegra_gpio_enable(gpio);
 	gpio_export(gpio, true);
+
+	return ret;
 }
 
 void modem_on_for_uart_config()
@@ -506,7 +510,7 @@ int modem_on_for_usb_config(struct gpio *array, size_t num)
 
 }
 
-int config_gpio_for_power_off()
+int config_gpio_for_power_off(void)
 {
 	int err=0;
 
@@ -532,7 +536,7 @@ int config_gpio_for_power_off()
 	return err;
 }
 
-int config_gpio_for_power_on()
+int config_gpio_for_power_on(void)
 {
 	int err=0;
 

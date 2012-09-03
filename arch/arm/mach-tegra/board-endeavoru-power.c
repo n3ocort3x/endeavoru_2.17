@@ -663,7 +663,7 @@ static void endeavor_power_off(void)
 #else
         pr_info("endeavoru: Powering off the device or"
                 " enter offmode charging\n");
-        tps80031_power_off_or_reboot();
+        ret = tps80031_power_off_or_reboot();
 #endif
 	if (ret)
 		pr_err("endeavoru: failed to power off\n");
