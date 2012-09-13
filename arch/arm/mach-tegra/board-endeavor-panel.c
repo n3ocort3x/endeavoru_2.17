@@ -4034,78 +4034,6 @@ static void bkl_update(unsigned long data) {
 	queue_work(bkl_wq, &bkl_work);
 }
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-/* put early_suspend/late_resume handlers here for the display in order
- * to keep the code out of the display driver, keeping it closer to upstream
- */
-struct early_suspend endeavor_panel_early_suspender;
-#ifdef CONFIG_HTC_ONMODE_CHARGING
-struct early_suspend endeavor_panel_onchg_suspender;
-#endif
-
-static void endeavor_panel_early_suspend(struct early_suspend *h)
-{
-	DISP_INFO_IN();
-
-	struct backlight_device *bl = platform_get_drvdata(&endeavor_disp1_backlight_device);
-	if (bl && bl->props.bkl_on) {
-		bl->props.bkl_on = 0;
-		del_timer_sync(&bkl_timer);
-		flush_workqueue(bkl_wq);
-	}
-
-	/* power down LCD, add use a black screen for HDMI */
-	if (num_registered_fb > 0)
-		fb_blank(registered_fb[0], FB_BLANK_POWERDOWN);
-	if (num_registered_fb > 1)
-		fb_blank(registered_fb[1], FB_BLANK_NORMAL);
-
-	DISP_INFO_OUT();
-}
-
-static void endeavor_panel_late_resume(struct early_suspend *h)
-{
-	DISP_INFO_IN();
-
-	unsigned i;
-	for (i = 0; i < num_registered_fb; i++)
-		fb_blank(registered_fb[i], FB_BLANK_UNBLANK);
-
-	mod_timer(&bkl_timer, jiffies + msecs_to_jiffies(50));
-	DISP_INFO_OUT();
-}
-
-#ifdef CONFIG_HTC_ONMODE_CHARGING
-static void endeavor_panel_onchg_suspend(struct early_suspend *h)
-{
-	DISP_INFO_IN();
-
-	struct backlight_device *bl = platform_get_drvdata(&endeavor_disp1_backlight_device);
-	if (bl && bl->props.bkl_on) {
-		bl->props.bkl_on = 0;
-		del_timer_sync(&bkl_timer);
-		flush_workqueue(bkl_wq);
-	}
-
-	/* power down LCD */
-	if (num_registered_fb > 0)
-		fb_blank(registered_fb[0], FB_BLANK_POWERDOWN);
-
-	DISP_INFO_OUT();
-}
-
-static void endeavor_panel_onchg_resume(struct early_suspend *h)
-{
-	DISP_INFO_IN();
-	unsigned i;
-
-	fb_blank(registered_fb[0], FB_BLANK_UNBLANK);
-
-	mod_timer(&bkl_timer, jiffies + msecs_to_jiffies(50));
-	DISP_INFO_OUT();
-}
-#endif /* onmode charge */
-#endif /* early suspend */
 
 int __init endeavor_panel_init(void)
 {
@@ -4130,19 +4058,6 @@ int __init endeavor_panel_init(void)
 
 	DISP_INFO_LN("panel id 0x%08x\n", g_panel_id);
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	endeavor_panel_early_suspender.suspend = endeavor_panel_early_suspend;
-	endeavor_panel_early_suspender.resume = endeavor_panel_late_resume;
-	endeavor_panel_early_suspender.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
-	register_early_suspend(&endeavor_panel_early_suspender);
-
-#ifdef CONFIG_HTC_ONMODE_CHARGING
-	endeavor_panel_onchg_suspender.suspend = endeavor_panel_onchg_suspend;
-	endeavor_panel_onchg_suspender.resume = endeavor_panel_onchg_resume;
-	endeavor_panel_onchg_suspender.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
-	register_onchg_suspend(&endeavor_panel_onchg_suspender);
-#endif
-#endif
 
 	err = platform_add_devices(endeavor_gfx_devices,
 				ARRAY_SIZE(endeavor_gfx_devices));
