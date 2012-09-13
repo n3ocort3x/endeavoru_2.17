@@ -307,22 +307,6 @@
 #define ROUND_DIVIDER_UP	0
 #define ROUND_DIVIDER_DOWN	1
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#define EARLY_SUSPEND_MIN_CPU_FREQ_IDX	0
-#define ACTIVE_MIN_CPU_FREQ_IDX		1
-/*
- * SCLK_ADJUST_DELAY is timeout to delay lowering SCLK
- * after display off/suspend. SCLK is kept at 40Mhz for the specified
- * timeout period. This is done to solve audio glitch as it was
- * found that dropping SCLK at 12Mhz doesn't provive enough bandwidth.
- */
-#define SCLK_ADJUST_DELAY 20000
-static struct	delayed_work delayed_adjust;
-DEFINE_MUTEX(early_suspend_lock);
-
-static struct cpufreq_frequency_table *selected_cpufreq_table;
-#endif
-
 #ifdef CONFIG_TEGRA_SILICON_PLATFORM
 #define PLLP_FIXED_RATE			408000000
 #else
@@ -357,12 +341,12 @@ static struct cpufreq_frequency_table *selected_cpufreq_table;
 /* Threshold to engage CPU clock skipper during CPU rate change */
 #define SKIPPER_ENGAGE_RATE		 800000000
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
+
 #define SCLK_MIN_FREQ			12000000
 static struct cpufreq_frequency_table *selected_cpufreq_table;
-#else
+
 #define SCLK_MIN_FREQ			40000000
-#endif
+
 
 /* Threshold to engage CPU clock skipper during CPU rate change */
 #define SKIPPER_ENGAGE_RATE		 800000000
@@ -4979,43 +4963,6 @@ static void tegra_clk_resume(void)
 #define tegra_clk_resume NULL
 #endif
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-
-static void delayed_adjusting_work(struct work_struct *work)
-{
-	struct clk *clk_wake = tegra_get_clock_by_name("wake.sclk");
-	mutex_lock(&early_suspend_lock);
-	if (clk_wake)
-		clk_disable(clk_wake);
-	mutex_unlock(&early_suspend_lock);
-}
-
-static struct early_suspend tegra3_clk_early_suspender;
-
-static void tegra3_clk_early_suspend(struct early_suspend *h)
-{
-	mutex_lock(&early_suspend_lock);
-	schedule_delayed_work(&delayed_adjust, msecs_to_jiffies(SCLK_ADJUST_DELAY));
-	mutex_unlock(&early_suspend_lock);
-}
-
-static void tegra3_clk_late_resume(struct early_suspend *h)
-{
-	struct clk *clk_wake = tegra_get_clock_by_name("wake.sclk");
-
-	mutex_lock(&early_suspend_lock);
-
-	if (clk_wake && (clk_wake->refcnt >= 1))
-		clk_disable(clk_wake);
-	cancel_delayed_work(&delayed_adjust);
-
-	if (clk_wake)
-		clk_enable(clk_wake);
-
-	mutex_unlock(&early_suspend_lock);
-}
-#endif
-
 static struct syscore_ops tegra_clk_syscore_ops = {
 	.suspend = tegra_clk_suspend,
 	.resume = tegra_clk_resume,
@@ -5063,10 +5010,4 @@ void __init tegra_soc_init_clocks(void)
 
 	register_syscore_ops(&tegra_clk_syscore_ops);
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	INIT_DELAYED_WORK(&delayed_adjust, delayed_adjusting_work);
-	tegra3_clk_early_suspender.suspend = tegra3_clk_early_suspend;
-	tegra3_clk_early_suspender.resume = tegra3_clk_late_resume;
-	register_early_suspend(&tegra3_clk_early_suspender);
-#endif
 }
