@@ -151,9 +151,6 @@ struct htc_battery_info {
 	int is_cable_in;
 #endif
 	int online;
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	struct early_suspend early_suspend;
-#endif
 
 };
 static struct htc_battery_info htc_batt_info;
@@ -1023,24 +1020,6 @@ static struct kobj_type htc_batt_ktype = {
 	.release = htc_batt_kobject_release,
 };
 
-#if defined(CONFIG_HAS_EARLYSUSPEND)
-static void htc_battery_late_resume(struct early_suspend *h)
-{
-	CHECK_LOG();
-
-	htc_batt_timer.total_time_ms += (jiffies -
-			htc_batt_timer.batt_system_jiffies) * MSEC_PER_SEC / HZ;
-	htc_batt_timer.batt_system_jiffies = jiffies;
-
-	if (htc_batt_timer.total_time_ms >= BATT_LATE_RESUME_CHECK_TIME * MSEC_PER_SEC) {
-		BATT_LOG("late resume with check time up, update battery level");
-		del_timer_sync(&htc_batt_timer.batt_timer);
-		cancel_work_sync(&htc_batt_timer.batt_work);
-		wake_lock(&htc_batt_timer.battery_lock);
-		queue_work(htc_batt_timer.batt_wq, &htc_batt_timer.batt_work);
-	}
-}
-#endif
 
 static unsigned long target_interval_ms = 0;
 static int htc_battery_prepare(struct device *dev)
@@ -1375,11 +1354,6 @@ static int htc_battery_probe(struct platform_device *pdev)
 
 	tps80032_vsys_alarm_register_notifier(&battery_alarm_notifier);
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	htc_batt_info.early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
-	htc_batt_info.early_suspend.resume = htc_battery_late_resume;
-	register_early_suspend(&htc_batt_info.early_suspend);
-#endif
 
 #if 0	/* fixme: use a delayed work to get better timming */
 	rc = htc_batt_get_battery_adc();
