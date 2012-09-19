@@ -845,6 +845,11 @@ static int flashlight_probe(struct platform_device *pdev)
 			FLT_ERR_LOG("%s: dev_attr_flash_adj failed\n", __func__);
 	}
 #endif
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	fl_str->early_suspend_flashlight.suspend = flashlight_early_suspend;
+	fl_str->early_suspend_flashlight.resume = flashlight_late_resume;
+	register_early_suspend(&fl_str->early_suspend_flashlight);
+#endif
 	hrtimer_init(&fl_str->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	fl_str->timer.function = flashlight_hrtimer_func;
 	fl_str->led_count = flashlight->led_count;
