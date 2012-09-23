@@ -31,10 +31,6 @@
 #include <linux/suspend.h>
 #include <linux/reboot.h>
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-#endif
-#define EARLYSUSPEND_HOTPLUGLOCK 1
 
 /*
  * runqueue average
@@ -146,7 +142,7 @@ static unsigned int get_nr_run_avg(void)
 #define DEF_SAMPLING_DOWN_FACTOR		(2)
 #define MAX_SAMPLING_DOWN_FACTOR		(100000)
 #define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(5)
-#define DEF_FREQUENCY_UP_THRESHOLD		(85)
+#define DEF_FREQUENCY_UP_THRESHOLD		(90)
 #define DEF_FREQUENCY_MIN_SAMPLE_RATE		(10000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
@@ -161,15 +157,14 @@ static unsigned int get_nr_run_avg(void)
 #define DEF_UP_NR_CPUS				(1)
 #define DEF_CPU_UP_RATE				(10)
 #define DEF_CPU_DOWN_RATE			(20)
-#define DEF_FREQ_STEP				(40)
+#define DEF_FREQ_STEP				(20)
 #define DEF_START_DELAY				(0)
 
-#define UP_THRESHOLD_AT_MIN_FREQ		(70)
+#define UP_THRESHOLD_AT_MIN_FREQ		(40)
 #define FREQ_FOR_RESPONSIVENESS			(350000)
 
 #define HOTPLUG_DOWN_INDEX			(0)
 #define HOTPLUG_UP_INDEX			(1)
-
 
 #ifdef CONFIG_MACH_MIDAS
 static int hotplug_rq[4][2] = {
@@ -217,6 +212,7 @@ struct cpu_dbs_info_s {
 	cputime64_t prev_cpu_idle;
 	cputime64_t prev_cpu_iowait;
 	cputime64_t prev_cpu_wall;
+	unsigned int prev_cpu_wall_delta;
 	cputime64_t prev_cpu_nice;
 	struct cpufreq_policy *cur_policy;
 	struct delayed_work work;
@@ -250,7 +246,7 @@ static struct dbs_tuners {
 	unsigned int ignore_nice;
 	unsigned int sampling_down_factor;
 	unsigned int io_is_busy;
-	/* n3ocold tuners */
+	/* n3ocodl tuners */
 	unsigned int freq_step;
 	unsigned int cpu_up_rate;
 	unsigned int cpu_down_rate;
@@ -261,9 +257,9 @@ static struct dbs_tuners {
 	unsigned int dvfs_debug;
 	unsigned int max_freq;
 	unsigned int min_freq;
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	int early_suspend;
-#endif
+
+	
+
 	unsigned int up_threshold_at_min_freq;
 	unsigned int freq_for_responsiveness;
 } dbs_tuners_ins = {
@@ -279,9 +275,9 @@ static struct dbs_tuners {
 	.min_cpu_lock = DEF_MIN_CPU_LOCK,
 	.hotplug_lock = ATOMIC_INIT(0),
 	.dvfs_debug = 0,
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	.early_suspend = -1,
-#endif
+
+	
+
 	.up_threshold_at_min_freq = UP_THRESHOLD_AT_MIN_FREQ,
 	.freq_for_responsiveness = FREQ_FOR_RESPONSIVENESS,
 };
@@ -1070,8 +1066,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	struct cpufreq_policy *policy;
 	unsigned int j;
 	int num_hist = hotplug_history->num_hist;
-	int max_hotplug_rate = max(dbs_tuners_ins.cpu_up_rate,
-				   dbs_tuners_ins.cpu_down_rate);
+	int max_hotplug_rate = MAX_HOTPLUG_RATE;
 	int up_threshold = dbs_tuners_ins.up_threshold;
 
 	policy = this_dbs_info->cur_policy;
@@ -1103,16 +1098,42 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		cur_idle_time = get_cpu_idle_time(j, &cur_wall_time);
 		cur_iowait_time = get_cpu_iowait_time(j, &cur_wall_time);
 
-		wall_time = (unsigned int)
-			(cur_wall_time - prev_wall_time);
+		wall_time = (unsigned int) cputime64_sub(cur_wall_time,
+							 prev_wall_time);
 		j_dbs_info->prev_cpu_wall = cur_wall_time;
 
-		idle_time = (unsigned int)
-			(cur_idle_time - prev_idle_time);
+		/*
+		 * Ignore wall delta jitters in both directions.  An
+		 * exceptionally long wall_time will likely result
+		 * idle but it was waken up to do work so the next
+		 * slice is less likely to want to run at low
+		 * frequency. Let's evaluate the next slice instead of
+		 * the idle long one that passed already and it's too
+		 * late to reduce in frequency.  As opposed an
+		 * exceptionally short slice that just run at low
+		 * frequency is unlikely to be idle, but we may go
+		 * back to idle pretty soon and that not idle slice
+		 * already passed. If short slices will keep coming
+		 * after a series of long slices the exponential
+		 * backoff will converge faster and we'll react faster
+		 * to high load. As opposed we'll decay slower
+		 * towards low load and long idle times.
+		 */
+		if (j_dbs_info->prev_cpu_wall_delta >
+		    wall_time * deep_sleep_factor ||
+		    j_dbs_info->prev_cpu_wall_delta * deep_sleep_factor <
+		    wall_time)
+			deep_sleep_detected = true;
+		j_dbs_info->prev_cpu_wall_delta =
+			(j_dbs_info->prev_cpu_wall_delta * deep_sleep_backoff
+			 + wall_time) / (deep_sleep_backoff+1);
+
+		idle_time = (unsigned int) cputime64_sub(cur_idle_time,
+							 prev_idle_time);
 		j_dbs_info->prev_cpu_idle = cur_idle_time;
 
-		iowait_time = (unsigned int)
-			(cur_iowait_time - prev_iowait_time);
+		iowait_time = (unsigned int) cputime64_sub(cur_iowait_time,
+							   prev_iowait_time);
 		j_dbs_info->prev_cpu_iowait = cur_iowait_time;
 
 		if (dbs_tuners_ins.ignore_nice) {
@@ -1262,8 +1283,6 @@ static inline void dbs_timer_init(struct cpu_dbs_info_s *dbs_info)
 
 	queue_delayed_work_on(dbs_info->cpu, dvfs_workqueue,
 			      &dbs_info->work, delay + 2 * HZ);
-
-	
 }
 
 static inline void dbs_timer_exit(struct cpu_dbs_info_s *dbs_info)
@@ -1271,8 +1290,6 @@ static inline void dbs_timer_exit(struct cpu_dbs_info_s *dbs_info)
 	cancel_delayed_work_sync(&dbs_info->work);
 	cancel_work_sync(&dbs_info->up_work);
 	cancel_work_sync(&dbs_info->down_work);
-
-	
 }
 
 static int pm_notifier_call(struct notifier_block *this,
@@ -1312,33 +1329,6 @@ static int reboot_notifier_call(struct notifier_block *this,
 static struct notifier_block reboot_notifier = {
 	.notifier_call = reboot_notifier_call,
 };
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static struct early_suspend early_suspend;
-unsigned int prev_freq_step;
-unsigned int prev_sampling_rate;
-static void cpufreq_n3ocold_early_suspend(struct early_suspend *h)
-{
-	dbs_tuners_ins.early_suspend =
-		atomic_read(&g_hotplug_lock);
-	prev_freq_step = dbs_tuners_ins.freq_step;
-	prev_sampling_rate = dbs_tuners_ins.sampling_rate;
-	dbs_tuners_ins.freq_step = 20;
-	dbs_tuners_ins.sampling_rate *= 4;
-	atomic_set(&g_hotplug_lock, 1);
-	apply_hotplug_lock();
-	stop_rq_work();
-}
-static void cpufreq_n3ocold_late_resume(struct early_suspend *h)
-{
-	atomic_set(&g_hotplug_lock, dbs_tuners_ins.early_suspend);
-	dbs_tuners_ins.early_suspend = -1;
-	dbs_tuners_ins.freq_step = prev_freq_step;
-	dbs_tuners_ins.sampling_rate = prev_sampling_rate;
-	apply_hotplug_lock();
-	start_rq_work();
-}
-#endif
 
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 				unsigned int event)
@@ -1400,14 +1390,15 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		mutex_init(&this_dbs_info->timer_mutex);
 		dbs_timer_init(this_dbs_info);
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-		register_early_suspend(&early_suspend);
+#if !EARLYSUSPEND_HOTPLUGLOCK
+		register_pm_notifier(&pm_notifier);
 #endif
 		break;
 
 	case CPUFREQ_GOV_STOP:
-#ifdef CONFIG_HAS_EARLYSUSPEND
-		unregister_early_suspend(&early_suspend);
+
+#if !EARLYSUSPEND_HOTPLUGLOCK
+		unregister_pm_notifier(&pm_notifier);
 #endif
 
 		dbs_timer_exit(this_dbs_info);
@@ -1425,6 +1416,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		if (!dbs_enable)
 			sysfs_remove_group(cpufreq_global_kobject,
 					   &dbs_attr_group);
+
 		break;
 
 	case CPUFREQ_GOV_LIMITS:
@@ -1471,12 +1463,6 @@ static int __init cpufreq_gov_dbs_init(void)
 	if (ret)
 		goto err_reg;
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
-	early_suspend.suspend = cpufreq_n3ocold_early_suspend;
-	early_suspend.resume = cpufreq_n3ocold_late_resume;
-#endif
-
 	return ret;
 
 err_reg:
@@ -1497,7 +1483,7 @@ static void __exit cpufreq_gov_dbs_exit(void)
 }
 
 MODULE_AUTHOR("ByungChang Cha <bc.cha@samsung.com>");
-MODULE_DESCRIPTION("'cpufreq_n3ocold' - A dynamic cpufreq/cpuhotplug governor");
+MODULE_DESCRIPTION("'cpufreq_n3ocold' - A dynamic cpufreq/cpuhotplug governor, completely based on pegasusq, modified for Onex");
 MODULE_LICENSE("GPL");
 
 #ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_N3OCOLD
