@@ -47,7 +47,7 @@
 #define DEF_IO_IS_BUSY				(1)
 #define DEF_UI_DYNAMIC_SAMPLING_RATE		(30000)
 #define DEF_UI_COUNTER				(5)
-#define DEFAULT_FREQ_BOOST_TIME			(500000)
+#define DEFAULT_FREQ_BOOST_TIME			(2500000)
 
 u64 freq_boosted_time;
 /*
@@ -143,7 +143,7 @@ static struct dbs_tuners {
 	.ignore_nice = 0,
 	.powersave_bias = 0,
 	.freq_boost_time = DEFAULT_FREQ_BOOST_TIME,
-	.boostfreq = 10000000,
+	.boostfreq = 0,
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
 	.two_phase_freq = 0,
 #endif
