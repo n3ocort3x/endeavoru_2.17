@@ -4904,9 +4904,7 @@ static void tegra3_clk_early_suspend(struct early_suspend *h)
 	struct clk *cpu_clk_lp = &tegra_clk_virtual_cpu_lp;
 
 	mutex_lock(&early_suspend_lock);
-		if (!lock_wake_clock) {
-		 schedule_delayed_work(&delayed_adjust, msecs_to_jiffies(SCLK_ADJUST_DELAY));
-
+	schedule_delayed_work(&delayed_adjust, msecs_to_jiffies(SCLK_ADJUST_DELAY));
 
 	cpu_clk_lp->min_rate =
 		selected_cpufreq_table[EARLY_SUSPEND_MIN_CPU_FREQ_IDX]
@@ -4933,7 +4931,7 @@ static void tegra3_clk_late_resume(struct early_suspend *h)
 		.frequency * 1000;
 	mutex_unlock(&early_suspend_lock);
 }
-
+#endif
 
 static struct syscore_ops tegra_clk_syscore_ops = {
 	.suspend = tegra_clk_suspend,
