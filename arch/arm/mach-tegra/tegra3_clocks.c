@@ -372,6 +372,8 @@ static struct clk *cpu_sclk;
 static bool detach_shared_bus;
 module_param(detach_shared_bus, bool, 0644);
 
+bool lock_wake_clock = false;
+
 /**
 * Structure defining the fields for USB UTMI clocks Parameters.
 */
@@ -3821,7 +3823,7 @@ static struct clk tegra_clk_cclk_lp = {
 	.inputs	= mux_cclk_lp,
 	.reg	= 0x370,
 	.ops	= &tegra_super_ops,
-	.max_rate = 620000000,
+	.max_rate = 600000000,
 	.u.cclk = {
 		.div71 = 2 * CPU_LP_BACKUP_RATE_DIV - 2,
 	},
@@ -4441,107 +4443,112 @@ void tegra_edp_throttle_cpu_now(u8 factor)
  */
 
 static struct cpufreq_frequency_table freq_table_300MHz[] = {
-	{ 0, 200000 },
-	{ 1, 300000 },
+	{ 0, 100000 },
+	{ 1, 200000 },
 	{ 2, CPUFREQ_TABLE_END },
 };
 
 static struct cpufreq_frequency_table freq_table_1p0GHz[] = {
 	{ 0, 100000 },
 	{ 1, 150000 },
-	{ 2, 200000 },
-	{ 3, 250000 },
-	{ 4, 300000 },
-	{ 5, 400000 },
-	{ 6, 500000 },
-	{ 7, 600000 },
-	{ 8, 700000 },
-	{ 9, 800000 },
-	{10, CPUFREQ_TABLE_END },
+	{ 2, 250000 },
+	{ 3, 300000 },
+	{ 4, 350000 },
+	{ 5, 500000 },
+	{ 6, 600000 },
+	{ 7, 700000 },
+	{ 8, 800000 },
+	{ 9, 900000 },
+	{10, 1000000 },
+	{11, CPUFREQ_TABLE_END },
 };
 
 static struct cpufreq_frequency_table freq_table_1p3GHz[] = {
 	{ 0, 100000 },
 	{ 1, 150000 },
-	{ 2, 200000 },
-	{ 3, 250000 },
-	{ 4, 300000 },
-	{ 5, 400000 },
-	{ 6, 500000 },
-	{ 7, 600000 },
-	{ 8, 700000 },
-	{ 9, 800000 },
-	{10, 900000 },
-	{11, 1000000 },
-	{12, 1100000 },
-	{13, CPUFREQ_TABLE_END },
+	{ 2, 250000 },
+	{ 3, 300000 },
+	{ 4, 350000 },
+	{ 5, 500000 },
+	{ 6, 600000 },
+	{ 7, 700000 },
+	{ 8, 800000 },
+	{ 9, 900000 },
+	{10, 1000000 },
+	{11, 1100000 },
+	{12, 1200000 },
+	{13, 1300000 },
+	{14, CPUFREQ_TABLE_END },
 };
 
 static struct cpufreq_frequency_table freq_table_1p4GHz[] = {
 	{ 0, 100000 },
 	{ 1, 150000 },
-	{ 2, 200000 },
-	{ 3, 250000 },
-	{ 4, 300000 },
-	{ 5, 400000 },
-	{ 6, 500000 },
-	{ 7, 600000 },
-	{ 8, 700000 },
-	{ 9, 800000 },
-	{10, 900000 },
-	{11, 1000000 },
-	{12, 1100000 },
-	{13, 1200000 },
-	{14, CPUFREQ_TABLE_END },
+	{ 2, 250000 },
+	{ 3, 300000 },
+	{ 4, 350000 },
+	{ 5, 500000 },
+	{ 6, 600000 },
+	{ 7, 700000 },
+	{ 8, 800000 },
+	{ 9, 900000 },
+	{10, 1000000 },
+	{11, 1100000 },
+	{12, 1200000 },
+	{13, 1300000 },
+	{14, 1400000 },
+	{15, CPUFREQ_TABLE_END },
 };
 
 static struct cpufreq_frequency_table freq_table_1p5GHz[] = {
 	{ 0, 100000 },
 	{ 1, 150000 },
-	{ 2, 200000 },
-	{ 3, 250000 },
-	{ 4, 300000 },
-	{ 5, 400000 },
-	{ 6, 500000 },
-	{ 7, 600000 },
-	{ 8, 700000 },
-	{ 9, 800000 },
-	{10, 900000 },
-	{11, 1000000 },
-	{12, 1100000 },
-	{13, 1200000 },
-	{14, 1300000 },
-	{15, CPUFREQ_TABLE_END },
+	{ 2, 250000 },
+	{ 3, 300000 },
+	{ 4, 350000 },
+	{ 5, 500000 },
+	{ 6, 600000 },
+	{ 7, 700000 },
+	{ 8, 800000 },
+	{ 9, 900000 },
+	{10, 1000000 },
+	{11, 1100000 },
+	{12, 1200000 },
+	{13, 1300000 },
+	{14, 1400000 },
+	{15, 1500000 },
+	{16, CPUFREQ_TABLE_END },
 };
 
 static struct cpufreq_frequency_table freq_table_1p7GHz[] = {
 	{ 0, 100000 },
 	{ 1, 150000 },
-	{ 2, 200000 },
-	{ 3, 250000 },
-	{ 4, 300000 },
-	{ 5, 400000 },
-	{ 6, 500000 },
-	{ 7, 600000 },
-	{ 8, 700000 },
-	{ 9, 800000 },
-	{10, 900000 },
-	{11, 1000000 },
-	{12, 1100000 },
-	{13, 1200000 },
-	{14, 1300000 },
-	{15, 1400000 },
-	{16, 1500000 },
-	{17, CPUFREQ_TABLE_END },
+	{ 2, 250000 },
+	{ 3, 300000 },
+	{ 4, 350000 },
+	{ 5, 500000 },
+	{ 6, 600000 },
+	{ 7, 700000 },
+	{ 8, 800000 },
+	{ 9, 900000 },
+	{10, 1000000 },
+	{11, 1100000 },
+	{12, 1200000 },
+	{13, 1300000 },
+	{14, 1400000 },
+	{15, 1500000 },
+	{16, 1600000 },
+	{17, 1700000 },
+	{18, CPUFREQ_TABLE_END },
 };
 
 static struct tegra_cpufreq_table_data cpufreq_tables[] = {
 	{ freq_table_300MHz, 0,  1 },
-	{ freq_table_1p0GHz, 2, 11 },
-	{ freq_table_1p3GHz, 2, 13 },
-	{ freq_table_1p4GHz, 2, 13 },
-	{ freq_table_1p5GHz, 2, 13 },
-	{ freq_table_1p7GHz, 2, 13 },
+	{ freq_table_1p0GHz, 1, 11 },
+	{ freq_table_1p3GHz, 1, 14 },
+	{ freq_table_1p4GHz, 1, 15 },
+	{ freq_table_1p5GHz, 1, 16 },
+	{ freq_table_1p7GHz, 1, 18 },
 };
 
 static int clip_cpu_rate_limits(
@@ -4897,7 +4904,10 @@ static void tegra3_clk_early_suspend(struct early_suspend *h)
 	struct clk *cpu_clk_lp = &tegra_clk_virtual_cpu_lp;
 
 	mutex_lock(&early_suspend_lock);
-	schedule_delayed_work(&delayed_adjust, msecs_to_jiffies(SCLK_ADJUST_DELAY));
+		if (!lock_wake_clock) {
+			 schedule_delayed_work(&delayed_adjust, msecs_to_jiffies(SCLK_ADJUST_DELAY));
+			}
+		        mutex_unlock(&early_suspend_lock);
 
 	cpu_clk_lp->min_rate =
 		selected_cpufreq_table[EARLY_SUSPEND_MIN_CPU_FREQ_IDX]
@@ -4911,18 +4921,15 @@ static void tegra3_clk_late_resume(struct early_suspend *h)
 	struct clk *cpu_clk_lp = &tegra_clk_virtual_cpu_lp;
 
 	mutex_lock(&early_suspend_lock);
+	 if (!lock_wake_clock) {
+                if (clk_wake && (clk_wake->refcnt >= 1))
+		        clk_disable(clk_wake);
+                cancel_delayed_work(&delayed_adjust);
 
-	if (clk_wake && (clk_wake->refcnt >= 1))
-		clk_disable(clk_wake);
-	cancel_delayed_work(&delayed_adjust);
-
-	if (clk_wake)
-		clk_enable(clk_wake);
-
-	cpu_clk_lp->min_rate =
-		selected_cpufreq_table[ACTIVE_MIN_CPU_FREQ_IDX]
-		.frequency * 1000;
-	mutex_unlock(&early_suspend_lock);
+                if (clk_wake)
+		        clk_enable(clk_wake);
+        }
+        mutex_unlock(&early_suspend_lock);
 }
 #endif
 
