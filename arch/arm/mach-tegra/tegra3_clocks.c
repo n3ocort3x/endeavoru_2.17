@@ -370,7 +370,9 @@ static struct clk *emc_bridge;
 static struct clk *cpu_sclk;
 
 static bool detach_shared_bus;
-module_param(detach_shared_bus, bool, 0644);
+module_param(detach_shared_bus, bool, 0644);#
+
+bool lock_wake_clock = false;
 
 /**
 * Structure defining the fields for USB UTMI clocks Parameters.
