@@ -372,8 +372,6 @@ static struct clk *cpu_sclk;
 static bool detach_shared_bus;
 module_param(detach_shared_bus, bool, 0644);
 
-bool lock_wake_clock = false;
-
 /**
 * Structure defining the fields for USB UTMI clocks Parameters.
 */
@@ -4886,8 +4884,6 @@ static void tegra_clk_resume(void)
 #define tegra_clk_resume NULL
 #endif
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-
 static void delayed_adjusting_work(struct work_struct *work)
 {
 	struct clk *clk_wake = tegra_get_clock_by_name("wake.sclk");
@@ -4901,37 +4897,27 @@ static struct early_suspend tegra3_clk_early_suspender;
 
 static void tegra3_clk_early_suspend(struct early_suspend *h)
 {
-	struct clk *cpu_clk_lp = &tegra_clk_virtual_cpu_lp;
-
 	mutex_lock(&early_suspend_lock);
-		if (!lock_wake_clock) {
-		 schedule_delayed_work(&delayed_adjust, msecs_to_jiffies(SCLK_ADJUST_DELAY));
-
-
-	cpu_clk_lp->min_rate =
-		selected_cpufreq_table[EARLY_SUSPEND_MIN_CPU_FREQ_IDX]
-		.frequency * 1000;
-	mutex_unlock(&early_suspend_lock);
+        if (!lock_wake_clock) {
+                schedule_delayed_work(&delayed_adjust, msecs_to_jiffies(SCLK_ADJUST_DELAY));
+        }
+        mutex_unlock(&early_suspend_lock);
 }
 
 static void tegra3_clk_late_resume(struct early_suspend *h)
 {
 	struct clk *clk_wake = tegra_get_clock_by_name("wake.sclk");
-	struct clk *cpu_clk_lp = &tegra_clk_virtual_cpu_lp;
 
 	mutex_lock(&early_suspend_lock);
+        if (!lock_wake_clock) {
+                if (clk_wake && (clk_wake->refcnt >= 1))
+		        clk_disable(clk_wake);
+                cancel_delayed_work(&delayed_adjust);
 
-	if (clk_wake && (clk_wake->refcnt >= 1))
-		clk_disable(clk_wake);
-	cancel_delayed_work(&delayed_adjust);
-
-	if (clk_wake)
-		clk_enable(clk_wake);
-
-	cpu_clk_lp->min_rate =
-		selected_cpufreq_table[ACTIVE_MIN_CPU_FREQ_IDX]
-		.frequency * 1000;
-	mutex_unlock(&early_suspend_lock);
+                if (clk_wake)
+		        clk_enable(clk_wake);
+        }
+        mutex_unlock(&early_suspend_lock);
 }
 #endif
 
