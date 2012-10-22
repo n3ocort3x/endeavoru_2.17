@@ -370,7 +370,7 @@ static struct clk *emc_bridge;
 static struct clk *cpu_sclk;
 
 static bool detach_shared_bus;
-module_param(detach_shared_bus, bool, 0644);#
+module_param(detach_shared_bus, bool, 0644);
 
 bool lock_wake_clock = false;
 
@@ -4921,7 +4921,7 @@ static void tegra3_clk_late_resume(struct early_suspend *h)
         }
         mutex_unlock(&early_suspend_lock);
 }
-#endif
+
 
 static struct syscore_ops tegra_clk_syscore_ops = {
 	.suspend = tegra_clk_suspend,
