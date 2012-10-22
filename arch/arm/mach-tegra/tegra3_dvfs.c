@@ -47,7 +47,7 @@ int avp_millivolts[MAX_DVFS_FREQS] = {
 	900, 950, 1000, 1050, 1100, 1150, 1200, 1250};
 
 int lp_cpu_millivolts[MAX_DVFS_FREQS] = {
-	900, 950, 1000, 1050, 1100, 1150, 1200, 1250};
+	825, 875, 925, 975, 1025, 1075, 1125, 1175};
 
 int emc_millivolts[MAX_DVFS_FREQS] = {
 	900, 950, 1000, 1050, 1100, 1150, 1200, 1250};
@@ -63,21 +63,21 @@ static const int core_millivolts[MAX_DVFS_FREQS] = {
 #define VDD_CPU_BELOW_VDD_CORE		300
 static int cpu_below_core = VDD_CPU_BELOW_VDD_CORE;
 
-/*#define VDD_SAFE_STEP			100
-*/
+#define VDD_SAFE_STEP			100
+
 static struct dvfs_rail tegra3_dvfs_rail_vdd_cpu = {
 	.reg_id = "vdd_cpu",
 	.max_millivolts = 1250,
-	.min_millivolts = 800,
-	/*.step = VDD_SAFE_STEP,*/
+	.min_millivolts = 650,
+	.step = VDD_SAFE_STEP,
 	.jmp_to_zero = true,
 };
 
 static struct dvfs_rail tegra3_dvfs_rail_vdd_core = {
 	.reg_id = "vdd_core",
 	.max_millivolts = 1250,
-	.min_millivolts = 900,
-	/*.step = VDD_SAFE_STEP,*/
+	.min_millivolts = 650,
+	.step = VDD_SAFE_STEP,
 };
 
 static struct dvfs_rail *tegra3_dvfs_rails[] = {
@@ -87,19 +87,19 @@ static struct dvfs_rail *tegra3_dvfs_rails[] = {
 
 static int tegra3_get_core_floor_mv(int cpu_mv)
 {
+	if (cpu_mv < 650)
+		return  750;
+	if (cpu_mv < 700)
+		return 800;
 	if (cpu_mv < 800)
-		return  900;
-	if (cpu_mv < 850)
-		return 950;
-	if (cpu_mv < 950)
-		return 1050;
+		return 900;
 	if ((tegra_cpu_speedo_id() < 2) ||
 	    (tegra_cpu_speedo_id() == 4))
+		return 1000;
+	if (cpu_mv < 900)
+		return 1000;
+	if (cpu_mv <= 1050)
 		return 1150;
-	if (cpu_mv < 1050)
-		return 1150;
-	if (cpu_mv <= 1200)
-		return 1250;
 	BUG();
 }
 
@@ -173,15 +173,11 @@ static struct dvfs cpu_dvfs_table[] = {
 	CPU_DVFS("cpu_g",  3, 3, MHZ,   1,   1, 770, 770,  910,  910, 1150, 1230, 1280, 1300, 1350, 1400),
 
 	CPU_DVFS("cpu_g",  4, 0, MHZ,   1,   1, 550, 550,  680,  680,  820,  970, 1040, 1080, 1150, 1200, 1240, 1280, 1320, 1360, 1360, 1500),
-#ifdef CONFIG_TEGRA3_VARIANT_CPU_OVERCLOCK
-	CPU_DVFS("cpu_g",  4, 1, MHZ,   1,   1, 650, 650,  780,  780,  990, 1040, 1100, 1200, 1250, 1300, 1330, 1360, 1400, 1500, 1500, 1600),
-	CPU_DVFS("cpu_g",  4, 2, MHZ,   1,   1, 700, 700,  860,  860, 1050, 1150, 1200, 1280, 1300, 1340, 1380, 1500, 1500, 1540, 1540, 1600),
-	CPU_DVFS("cpu_g",  4, 3, MHZ,   1,   1, 770, 770,  910,  910, 1150, 1230, 1280, 1330, 1370, 1400, 1470, 1500, 1500, 1540, 1580, 1700),
-#else
+
 	CPU_DVFS("cpu_g",  4, 1, MHZ,   1,   1, 650, 650,  780,  780,  990, 1040, 1100, 1200, 1250, 1300, 1330, 1360, 1400, 1500),
 	CPU_DVFS("cpu_g",  4, 2, MHZ,   1,   1, 700, 700,  860,  860, 1050, 1150, 1200, 1280, 1300, 1340, 1380, 1500),
 	CPU_DVFS("cpu_g",  4, 3, MHZ,   1,   1, 770, 770,  910,  910, 1150, 1230, 1280, 1330, 1370, 1400, 1500),
-#endif
+
 	CPU_DVFS("cpu_g",  5, 3, MHZ,   1,   1, 770, 770,  910,  910, 1150, 1230, 1280, 1330, 1370, 1400, 1470, 1500, 1500, 1540, 1540, 1700),
 	CPU_DVFS("cpu_g",  5, 4, MHZ,   1,   1, 770, 770,  940,  940, 1160, 1240, 1280, 1360, 1390, 1470, 1500, 1520, 1520, 1590, 1700),
 
@@ -232,10 +228,10 @@ static struct dvfs cpu_dvfs_table[] = {
 static struct dvfs core_dvfs_table[] = {
 	/* Core voltages (mV):		    950,   1000,   1050,   1100,   1150,    1200,    1250,    1300 */
 	/* Clock limits for internal blocks, PLLs */
-	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 0, 1, KHZ,   100000, 150000, 200000, 250000, 300000,  400000,  400000,  500000),
-	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 1, 1, KHZ,   150000, 200000, 250000, 300000, 400000,  400000,  400000,  500000),
-	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 2, 1, KHZ,   150000, 250000, 300000, 400000, 400000,  400000,  400000,  500000),
-	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 3, 1, KHZ,   100000, 100000, 100000, 100000, 100000,  100000,  400000,  500000),
+	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 0, 1, KHZ,   100000, 150000, 250000, 300000, 400000,  400000,  500000,  500000),
+	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 1, 1, KHZ,   150000, 250000, 300000, 300000, 500000,  500000,  500000,  500000),
+	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 2, 1, KHZ,   150000, 300000, 500000, 500000, 500000,  500000,  500000,  500000),
+	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 3, 1, KHZ,   100000, 100000, 100000, 100000, 100000,  100000,  500000,  500000),
 
 	CORE_DVFS("emc", emc_millivolts, 0, 1, KHZ,        1, 266500, 266500, 266500, 266500,  533000,  533000,  533000),
 	CORE_DVFS("emc", emc_millivolts, 1, 1, KHZ,   102000, 408000, 408000, 408000, 408000,  667000,  667000,  667000),
