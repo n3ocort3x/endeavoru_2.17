@@ -80,7 +80,10 @@
 #include "wakeups-t3.h"
 #include "pm.h"
 #include "htc-gpio.h"
+#include <mach/htc_util.h>
 #include <media/rawchip/rawchip.h>
+
+#include "pokecpu.h"
 
 #include "touch.h"
 #ifdef CONFIG_TEGRA_HAPTIC2
@@ -1441,6 +1444,7 @@ static struct synaptics_i2c_rmi_platform_data edge_ts_3k_data_XB[] = {
 		.abs_x_max = 1100,
 		.abs_y_min = 0,
 		.abs_y_max = 1770,
+		.notifyFinger = restoreCap, /* restore browser cap, */
 		//.flags = SYNAPTICS_FLIP_Y,
 		.gpio_irq = TOUCH_GPIO_IRQ,
 		.default_config = 1,
@@ -1486,6 +1490,7 @@ static struct synaptics_i2c_rmi_platform_data edge_ts_3k_data_XB[] = {
 		.abs_x_max = 1100,
 		.abs_y_min = 0,
 		.abs_y_max = 1770,
+		.notifyFinger = restoreCap, /* restore browser cap,*/
 		//.flags = SYNAPTICS_FLIP_Y,
 		.gpio_irq = TOUCH_GPIO_IRQ,
 		.power = powerfun,

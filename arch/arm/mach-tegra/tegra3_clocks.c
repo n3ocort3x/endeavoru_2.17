@@ -372,8 +372,6 @@ static struct clk *cpu_sclk;
 static bool detach_shared_bus;
 module_param(detach_shared_bus, bool, 0644);
 
-bool lock_wake_clock = false;
-
 /**
 * Structure defining the fields for USB UTMI clocks Parameters.
 */
@@ -3823,7 +3821,7 @@ static struct clk tegra_clk_cclk_lp = {
 	.inputs	= mux_cclk_lp,
 	.reg	= 0x370,
 	.ops	= &tegra_super_ops,
-	.max_rate = 600000000,
+	.max_rate = 620000000,
 	.u.cclk = {
 		.div71 = 2 * CPU_LP_BACKUP_RATE_DIV - 2,
 	},
@@ -4544,11 +4542,11 @@ static struct cpufreq_frequency_table freq_table_1p7GHz[] = {
 
 static struct tegra_cpufreq_table_data cpufreq_tables[] = {
 	{ freq_table_300MHz, 0,  1 },
-	{ freq_table_1p0GHz, 1, 10 },
-	{ freq_table_1p3GHz, 1, 12 },
-	{ freq_table_1p4GHz, 1, 13 },
+	{ freq_table_1p0GHz, 1,  9 },
+	{ freq_table_1p3GHz, 1, 11 },
+	{ freq_table_1p4GHz, 1, 12 },
 	{ freq_table_1p5GHz, 1, 14 },
-	{ freq_table_1p7GHz, 1, 16 },
+	{ freq_table_1p7GHz, 1, 14 },
 };
 
 static int clip_cpu_rate_limits(
@@ -4901,27 +4899,35 @@ static struct early_suspend tegra3_clk_early_suspender;
 
 static void tegra3_clk_early_suspend(struct early_suspend *h)
 {
+	struct clk *cpu_clk_lp = &tegra_clk_virtual_cpu_lp;
+
 	mutex_lock(&early_suspend_lock);
-        if (!lock_wake_clock) {
-                schedule_delayed_work(&delayed_adjust, msecs_to_jiffies(SCLK_ADJUST_DELAY));
-        }
-        mutex_unlock(&early_suspend_lock);
+	schedule_delayed_work(&delayed_adjust, msecs_to_jiffies(SCLK_ADJUST_DELAY));
+
+	cpu_clk_lp->min_rate =
+		selected_cpufreq_table[EARLY_SUSPEND_MIN_CPU_FREQ_IDX]
+		.frequency * 1000;
+	mutex_unlock(&early_suspend_lock);
 }
 
 static void tegra3_clk_late_resume(struct early_suspend *h)
 {
 	struct clk *clk_wake = tegra_get_clock_by_name("wake.sclk");
+	struct clk *cpu_clk_lp = &tegra_clk_virtual_cpu_lp;
 
 	mutex_lock(&early_suspend_lock);
-        if (!lock_wake_clock) {
-                if (clk_wake && (clk_wake->refcnt >= 1))
-		        clk_disable(clk_wake);
-                cancel_delayed_work(&delayed_adjust);
 
-                if (clk_wake)
-		        clk_enable(clk_wake);
-        }
-        mutex_unlock(&early_suspend_lock);
+	if (clk_wake && (clk_wake->refcnt >= 1))
+		clk_disable(clk_wake);
+	cancel_delayed_work(&delayed_adjust);
+
+	if (clk_wake)
+		clk_enable(clk_wake);
+
+	cpu_clk_lp->min_rate =
+		selected_cpufreq_table[ACTIVE_MIN_CPU_FREQ_IDX]
+		.frequency * 1000;
+	mutex_unlock(&early_suspend_lock);
 }
 #endif
 

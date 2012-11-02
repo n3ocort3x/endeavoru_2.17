@@ -797,6 +797,8 @@ _out:
 }
 
 
+static int enter_early_suspend = 0;
+static int perf_early_suspend = 0;
 static int CAP_CPU_FREQ_TARGET = 1200000;
 
 
