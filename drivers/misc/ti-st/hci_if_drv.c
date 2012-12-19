@@ -499,7 +499,7 @@ int hciif_dev_up(struct file *file, struct hciif_filter_t *rcv_filter,
 	if (retCode != HCIIF_SUCCESS)
 		return retCode;
 	memcpy(&filter, rcv_filter, sizeof(struct hciif_filter_t));
-	if (test_bit(HCIIF_CHAN_EVT, &filter.chan_mask)) {
+	if( HCIIF_CHAN_EVT & filter.chan_mask ) {
 		if (hhciif->hciif_cmdClientsCounter == HCIIF_CMD_CLIENTS_NUM) {
 			HCIIFDRV_ERR
 			("hciif_dev_up(): Trying to regsiter a client to Events channel --> Max clients are already registered");
@@ -537,7 +537,7 @@ int hciif_dev_up(struct file *file, struct hciif_filter_t *rcv_filter,
 	for (i = 0; i < ST_MAX_CHANNELS; i++) {
 		if (i == HCIIF_CHAN_EVT)	/* Each bit in chan_mask represents 1 channel that client requires... */
 			continue;
-		if (test_bit(i, &filter.chan_mask)) {
+		if( i & filter.chan_mask ) {
 			if (hhciif->hciif_RawClients[i])	/* "hciif_RawClients" only for channels with single client(all but 4th ch)
 								   array index = channel # so indx0 and index4 are allways NULL */
 			{
@@ -614,8 +614,7 @@ int hciif_dev_down(struct hciif_client *client)
 	chan_mask = client->filter.chan_mask;
 
 	/* First handle EVENT CHANNEL and its special array */
-	if (test_bit(HCIIF_CHAN_EVT, &chan_mask)) {
-
+	if( HCIIF_CHAN_EVT & chan_mask ) {
 		/* Find Client Struct */
 		for (i = 0; i < HCIIF_CMD_CLIENTS_NUM; i++) {
 			if (hhciif->hciif_CmdClients[i] == client)
@@ -669,7 +668,7 @@ int hciif_dev_down(struct hciif_client *client)
 	for (i = 0; i < ST_MAX_CHANNELS; i++) {
 		if (i == HCIIF_CHAN_EVT)
 			continue;
-		if (test_bit(i, &chan_mask))
+		if ( i & chan_mask )
 			hhciif->hciif_RawClients[i] = NULL;
 	}
 
@@ -680,7 +679,7 @@ int hciif_dev_down(struct hciif_client *client)
 
 	/* Un-Register all channels */
 	for (i = 0; i < ST_MAX_CHANNELS; i++) {
-		if (test_bit(i, &chan_mask)) {
+		if( i & chan_mask ) {
 			HCIIFDRV_VER
 			("Performing ST un-registration from Channel %d",
 			 i);
