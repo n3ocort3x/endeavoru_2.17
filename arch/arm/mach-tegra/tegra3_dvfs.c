@@ -44,16 +44,17 @@ static const unsigned int cpu_cold_offs_mhz[MAX_DVFS_FREQS] = {
 	  50,  50,  50,  50,  50,  50,  50,  50,  50,   50,   50,   50,   50,   50,   50,   50,   50,   50};
 
 int avp_millivolts[MAX_DVFS_FREQS] = {
-	900, 950, 1000, 1050, 1100, 1150, 1200, 1250};
+	950, 1000, 1050, 1100, 1150, 1200, 1250, 1300};
 
 int lp_cpu_millivolts[MAX_DVFS_FREQS] = {
-	825, 875, 925, 975, 1025, 1075, 1125, 1175};
+	950, 1000, 1050, 1100, 1150, 1200, 1250, 1300};
 
 int emc_millivolts[MAX_DVFS_FREQS] = {
-	900, 950, 1000, 1050, 1100, 1150, 1200, 1250};
+	950, 1000, 1050, 1100, 1150, 1200, 1250, 1300};
 
 static const int core_millivolts[MAX_DVFS_FREQS] = {
-	850, 900, 950, 1000, 1050, 1100, 1150, 1200};
+	950, 1000, 1050, 1100, 1150, 1200, 1250, 1300};
+
 
 #define KHZ 1000
 #define MHZ 1000000
@@ -67,7 +68,7 @@ static int cpu_below_core = VDD_CPU_BELOW_VDD_CORE;
 
 static struct dvfs_rail tegra3_dvfs_rail_vdd_cpu = {
 	.reg_id = "vdd_cpu",
-	.max_millivolts = 1250,
+	.max_millivolts = 1300,
 	.min_millivolts = 650,
 	.step = VDD_SAFE_STEP,
 	.jmp_to_zero = true,
@@ -75,8 +76,8 @@ static struct dvfs_rail tegra3_dvfs_rail_vdd_cpu = {
 
 static struct dvfs_rail tegra3_dvfs_rail_vdd_core = {
 	.reg_id = "vdd_core",
-	.max_millivolts = 1250,
-	.min_millivolts = 650,
+	.max_millivolts = 1300,
+	.min_millivolts = 950,
 	.step = VDD_SAFE_STEP,
 };
 
@@ -87,21 +88,22 @@ static struct dvfs_rail *tegra3_dvfs_rails[] = {
 
 static int tegra3_get_core_floor_mv(int cpu_mv)
 {
-	if (cpu_mv < 650)
-		return  750;
-	if (cpu_mv < 700)
-		return 800;
-	if (cpu_mv < 800)
-		return 950;
-	if ((tegra_cpu_speedo_id() < 2) ||
-	    (tegra_cpu_speedo_id() == 4))
-		return 1000;
+	if (cpu_mv < 850)
+		return  950;
 	if (cpu_mv < 900)
 		return 1000;
-	if (cpu_mv <= 1050)
-		return 1150;
+	if (cpu_mv < 1000)
+		return 1100;
+	if ((tegra_cpu_speedo_id() < 2) ||
+	    (tegra_cpu_speedo_id() == 4))
+		return 1200;
+	if (cpu_mv < 1100)
+		return 1200;
+	if (cpu_mv <= 1250)
+		return 1300;
 	BUG();
 }
+
 
 /* vdd_core must be >= min_level as a function of vdd_cpu */
 static int tegra3_dvfs_rel_vdd_cpu_vdd_core(struct dvfs_rail *vdd_cpu,
@@ -232,10 +234,11 @@ static struct dvfs cpu_dvfs_table[] = {
 static struct dvfs core_dvfs_table[] = {
 	/* Core voltages (mV):		    950,   1000,   1050,   1100,   1150,    1200,    1250,    1300 */
 	/* Clock limits for internal blocks, PLLs */
-	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 0, 1, KHZ,   100000, 150000, 250000, 300000, 350000,  500000,  500000,  500000),
-	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 1, 1, KHZ,   150000, 250000, 300000, 350000, 500000,  500000,  500000,  500000),
-	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 2, 1, KHZ,   250000, 350000, 500000, 500000, 500000,  500000,  500000,  500000),
-	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 3, 1, KHZ,   100000, 100000, 100000, 100000, 100000,  100000,  500000,  500000),
+	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 0, 1, KHZ,        1, 294000, 342000, 427000, 475000,  500000,  500000,  500000),
+	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 1, 1, KHZ,   204000, 294000, 342000, 427000, 475000,  500000,  500000,  500000),
+	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 2, 1, KHZ,   204000, 295000, 370000, 428000, 475000,  513000,  579000,  620000),
+	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 3, 1, KHZ,        1,      1,      1,      1,      1,       1,  450000,  450000),
+
 
 	CORE_DVFS("emc", emc_millivolts, 0, 1, KHZ,        1, 266500, 266500, 266500, 266500,  533000,  533000,  533000),
 	CORE_DVFS("emc", emc_millivolts, 1, 1, KHZ,   102000, 408000, 408000, 408000, 408000,  667000,  667000,  667000),

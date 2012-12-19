@@ -32,6 +32,7 @@
 #include <linux/earlysuspend.h>
 #endif
 
+
 /*
  * dbs is used in this file as a shortform for demandbased switching
  * It helps to keep variable names smaller, simpler
@@ -43,10 +44,10 @@
 #define MAX_SAMPLING_DOWN_FACTOR		(100000)
 #define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(3)
 #define MICRO_FREQUENCY_UP_THRESHOLD		(95)
-#define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
+#define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(15000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
-#define DEF_SAMPLING_RATE			(50000)
+#define DEF_SAMPLING_RATE			(30000)
 #define DEF_IO_IS_BUSY				(1)
 #define DEF_UI_DYNAMIC_SAMPLING_RATE		(30000)
 #define DEF_UI_COUNTER				(5)
@@ -75,8 +76,9 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 				unsigned int event);
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
-static struct early_suspend cpufreq_governor_early_suspend;
-static bool cpufreq_governor_screen = true;
+static struct early_suspend cpufreq_gov_early_suspend;
+static unsigned int cpufreq_gov_lcd_status;
+static unsigned long stored_sampling_rate;
 #endif
 
 #ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND
@@ -117,7 +119,9 @@ struct cpu_dbs_info_s {
 static DEFINE_PER_CPU(struct cpu_dbs_info_s, od_cpu_dbs_info);
 
 static unsigned int dbs_enable;	/* number of CPUs using this policy */
+#if 0
 static unsigned int g_ui_counter = 0;
+#endif
 
 /*
  * dbs_mutex protects dbs_enable in governor start/stop.
@@ -296,6 +300,62 @@ show_one(two_phase_freq, two_phase_freq);
 show_one(touch_poke, touch_poke);
 show_one(ui_sampling_rate, ui_sampling_rate);
 show_one(ui_counter, ui_counter);
+/**
+ * update_sampling_rate - update sampling rate effective immediately if needed.
+ * @new_rate: new sampling rate
+ *
+ * If new rate is smaller than the old, simply updaing
+ * dbs_tuners_int.sampling_rate might not be appropriate. For example,
+ * if the original sampling_rate was 1 second and the requested new sampling
+ * rate is 10 ms because the user needs immediate reaction from ondemand
+ * governor, but not sure if higher frequency will be required or not,
+ * then, the governor may change the sampling rate too late; up to 1 second
+ * later. Thus, if we are reducing the sampling rate, we need to make the
+ * new value effective immediately.
+ */
+static void update_sampling_rate(unsigned int new_rate)
+{
+	int cpu;
+
+	dbs_tuners_ins.sampling_rate = new_rate
+				     = max(new_rate, min_sampling_rate);
+
+	for_each_online_cpu(cpu) {
+		struct cpufreq_policy *policy;
+		struct cpu_dbs_info_s *dbs_info;
+		unsigned long next_sampling, appointed_at;
+
+		policy = cpufreq_cpu_get(cpu);
+		if (!policy)
+			continue;
+		dbs_info = &per_cpu(od_cpu_dbs_info, policy->cpu);
+		cpufreq_cpu_put(policy);
+
+		mutex_lock(&dbs_info->timer_mutex);
+
+		if (!delayed_work_pending(&dbs_info->work)) {
+			mutex_unlock(&dbs_info->timer_mutex);
+			continue;
+		}
+
+		next_sampling  = jiffies + usecs_to_jiffies(new_rate);
+		appointed_at = dbs_info->work.timer.expires;
+
+
+		if (time_before(next_sampling, appointed_at)) {
+
+			mutex_unlock(&dbs_info->timer_mutex);
+			cancel_delayed_work_sync(&dbs_info->work);
+			mutex_lock(&dbs_info->timer_mutex);
+
+			schedule_delayed_work_on(dbs_info->cpu, &dbs_info->work,
+						 usecs_to_jiffies(new_rate));
+
+		}
+		mutex_unlock(&dbs_info->timer_mutex);
+	}
+}
+
 static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
 {
@@ -306,8 +366,10 @@ static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 		return -EINVAL;
 	dbs_tuners_ins.sampling_rate = max(input, min_sampling_rate);
 	dbs_tuners_ins.origin_sampling_rate = dbs_tuners_ins.sampling_rate;
+	update_sampling_rate(dbs_tuners_ins.sampling_rate);
 	return count;
 }
+
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
 static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
@@ -355,9 +417,10 @@ static ssize_t store_ui_sampling_rate(struct kobject *a, struct attribute *b,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
-
+#if 0
 	dbs_tuners_ins.ui_sampling_rate = max(input, min_sampling_rate);
-
+	update_sampling_rate(dbs_tuners_ins.ui_sampling_rate);
+#endif
 	return count;
 }
 
@@ -652,11 +715,13 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		}
 	}
 
+#if 0
 	if (g_ui_counter > 0){
 		g_ui_counter--;
 		if(g_ui_counter == 0)
 			dbs_tuners_ins.sampling_rate = dbs_tuners_ins.origin_sampling_rate;
 	}
+#endif
 
 	/* Check for frequency increase */
 	if (max_load_freq > dbs_tuners_ins.up_threshold * policy->cur) {
@@ -686,7 +751,9 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		if (dbs_tuners_ins.two_phase_freq != 0 && phase == 0) {
 			debug_freq = dbs_tuners_ins.two_phase_freq;
 			/* idle phase */
-			dbs_freq_increase(policy, dbs_tuners_ins.two_phase_freq);
+			dbs_freq_increase(policy,
+				(((dbs_tuners_ins.two_phase_freq)> (int)(policy->max*80/100))
+					?(dbs_tuners_ins.two_phase_freq) : (int)(policy->max*80/100)));
 		} else {
 			/* busy phase */
 			if (policy->cur < policy->max)
@@ -914,9 +981,12 @@ static void dbs_refresh_callback(struct work_struct *unused)
 	this_dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
 	policy = this_dbs_info->cur_policy;
 
+#if 0
 	g_ui_counter = dbs_tuners_ins.ui_counter;
+
 	if(dbs_tuners_ins.ui_counter > 0)
 		dbs_tuners_ins.sampling_rate = dbs_tuners_ins.ui_sampling_rate;
+#endif
 	if (Touch_poke_boost_duration_ms)
 		Touch_poke_boost_till_jiffies =
 			jiffies + msecs_to_jiffies(Touch_poke_boost_duration_ms);
@@ -1085,7 +1155,6 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 
 		mutex_unlock(&dbs_mutex);
 
-		mutex_init(&this_dbs_info->timer_mutex);
 		dbs_timer_init(this_dbs_info);
 		break;
 
@@ -1118,16 +1187,24 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 	}
 	return 0;
 }
-
 #ifdef CONFIG_HAS_EARLYSUSPEND
-static void cpufreq_governor_suspend(struct early_suspend *h)
+static void cpufreq_gov_suspend(struct early_suspend *h)
 {
-	cpufreq_governor_screen = false;
+	mutex_lock(&dbs_mutex);
+	cpufreq_gov_lcd_status = 0;
+	stored_sampling_rate = dbs_tuners_ins.sampling_rate;
+	dbs_tuners_ins.sampling_rate = DEF_SAMPLING_RATE * 6;
+	update_sampling_rate(dbs_tuners_ins.sampling_rate);
+	mutex_unlock(&dbs_mutex);
 }
 
-static void cpufreq_governor_resume(struct early_suspend *h)
+static void cpufreq_gov_resume(struct early_suspend *h)
 {
-	cpufreq_governor_screen = true;
+	mutex_lock(&dbs_mutex);
+	cpufreq_gov_lcd_status = 1;
+	dbs_tuners_ins.sampling_rate = stored_sampling_rate;
+	update_sampling_rate(dbs_tuners_ins.sampling_rate);
+	mutex_unlock(&dbs_mutex);
 }
 #endif
 
@@ -1135,6 +1212,7 @@ static int __init cpufreq_gov_dbs_init(void)
 {
 	cputime64_t wall;
 	u64 idle_time;
+	unsigned int i;
 	int cpu = get_cpu();
 
 	idle_time = get_cpu_idle_time_us(cpu, &wall);
@@ -1158,14 +1236,20 @@ static int __init cpufreq_gov_dbs_init(void)
 	def_sampling_rate = DEF_SAMPLING_RATE;
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
-	cpufreq_governor_screen = true;
+	cpufreq_gov_lcd_status = 1;
 
-	cpufreq_governor_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-	cpufreq_governor_early_suspend.suspend = cpufreq_governor_suspend;
-	cpufreq_governor_early_suspend.resume = cpufreq_governor_resume;
+	cpufreq_gov_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
 
-	register_early_suspend(&cpufreq_governor_early_suspend);
+	cpufreq_gov_early_suspend.suspend = cpufreq_gov_suspend;
+	cpufreq_gov_early_suspend.resume = cpufreq_gov_resume;
+	register_early_suspend(&cpufreq_gov_early_suspend);
 #endif
+
+	for_each_possible_cpu(i) {
+		struct cpu_dbs_info_s *this_dbs_info =
+			&per_cpu(od_cpu_dbs_info, i);
+		mutex_init(&this_dbs_info->timer_mutex);
+	}
 
 	return cpufreq_register_governor(&cpufreq_gov_ondemand);
 }
@@ -1174,7 +1258,6 @@ static void __exit cpufreq_gov_dbs_exit(void)
 {
 	cpufreq_unregister_governor(&cpufreq_gov_ondemand);
 }
-
 
 MODULE_AUTHOR("Venkatesh Pallipadi <venkatesh.pallipadi@intel.com>");
 MODULE_AUTHOR("Alexey Starikovskiy <alexey.y.starikovskiy@intel.com>");
